@@ -117,13 +117,22 @@ class RateLimitedCog(commands.Cog):
         
     async def handle_command_error(self, interaction: discord.Interaction, error: Exception):
         """Handle command errors and track invalid requests"""
-        if isinstance(error, (discord.Forbidden, discord.NotFound)):
-            # Track 403 and 404 responses
-            if self.rate_limiter.track_invalid_request():
-                # We're approaching Cloudflare ban threshold
-                print("WARNING: Approaching invalid request limit!")
+        try:
+            if isinstance(error, (discord.Forbidden, discord.NotFound)):
+                # Track 403 and 404 responses
+                if self.rate_limiter.track_invalid_request():
+                    print("WARNING: Approaching invalid request limit!")
+
+            error_message = "An error occurred processing your command."
+            
+            try:
+                if interaction.response.is_done():
+                    await interaction.followup.send(error_message, ephemeral=True)
+                else:
+                    await interaction.response.send_message(error_message, ephemeral=True)
+            except discord.errors.NotFound:
+                # If interaction is completely invalid, we can't respond
+                print(f"Could not respond to interaction: {error}")
                 
-        await interaction.response.send_message(
-            "An error occurred processing your command.", 
-            ephemeral=True
-        )
+        except Exception as e:
+            print(f"Error in error handler: {e}")

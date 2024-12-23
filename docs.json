@@ -80,6 +80,14 @@
                 "BYOD/S": "https://docs.usetrmnl.com/go/diy/byod-s",
                 "BYOS": "https://docs.usetrmnl.com/go/diy/byos"
             }
+        },
+        "pipeline": {
+            "title": "TRMNL Pipeline",
+            "content": "**Upcoming TRMNL Features and Releases:**\n- Plugin System (Q1 2024)\n- Community Templates\n- Advanced DIY Options\n- Mobile App Integration",
+            "links": {
+                "Project Board": "https://usetrmnl.com/roadmap",
+                "Feature Requests": "https://usetrmnl.com/feedback"
+            }
         }
     }
 }

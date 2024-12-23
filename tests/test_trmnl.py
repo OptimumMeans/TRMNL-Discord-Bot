@@ -4,7 +4,7 @@ from discord import app_commands
 from unittest.mock import AsyncMock, MagicMock, patch
 import json
 from pathlib import Path
-from src.bot.trmnl import trmnl
+from src.bot.trmnl import TRMNL
 
 @pytest.fixture
 def bot():
@@ -15,7 +15,7 @@ def bot():
 
 @pytest.fixture
 def cog(bot):
-    return trmnl(bot)
+    return TRMNL(bot)
 
 @pytest.fixture
 def interaction():
@@ -34,8 +34,8 @@ async def test_sync_command(cog, interaction):
     await cog.sync.callback(cog, interaction)
 
     # Verify
-    assert interaction.response.send_message.called
-    args = interaction.response.send_message.call_args[1]
+    assert interaction.followup.send.called
+    args = interaction.followup.send.call_args[1]
     assert "Successfully synced 2 commands" in args["embed"].description
 
 @pytest.mark.asyncio
@@ -83,17 +83,16 @@ async def test_error_handling(cog, interaction):
     # Setup
     async def raise_error(*args, **kwargs):
         raise Exception("Test error")
-    
     cog.handle_rate_limit = AsyncMock(side_effect=raise_error)
-    
+
     # Execute
     await cog.home.callback(cog, interaction)
-    
-    # Verify error handling
-    assert interaction.response.send_message.called
-    args = interaction.response.send_message.call_args
-    assert "error occurred" in args[0][0].lower()  # Check first positional argument
-    assert args[1]["ephemeral"] is True  # Check ephemeral in kwargs
+
+    # Verify
+    assert interaction.followup.send.called
+    args = interaction.followup.send.call_args
+    assert "error occurred" in args[0][0].lower()
+    assert args[1]["ephemeral"] is True
 
 @pytest.mark.asyncio
 async def test_docs_command(cog, interaction):
@@ -139,20 +138,18 @@ async def test_privacy_command(cog, interaction):
 @pytest.mark.asyncio
 async def test_file_not_found_error(cog, interaction):
     # Setup
-    def raise_error(*args, **kwargs):
-        raise FileNotFoundError("docs.json not found")
-        
-    cog.reload_docs = MagicMock(side_effect=raise_error)
+    cog.load_docs = MagicMock(side_effect=FileNotFoundError("docs.json not found"))
     cog.handle_rate_limit = AsyncMock(return_value=True)
-    
+    cog.handle_command_error = AsyncMock()  # Mock error handler
+
     # Execute
     await cog.reload_docs_command.callback(cog, interaction)
-    
-    # Verify error handling
-    assert interaction.response.send_message.called
-    args = interaction.response.send_message.call_args
-    assert "error occurred" in args[0][0].lower()  # Check first positional argument
-    assert args[1]["ephemeral"] is True  # Check ephemeral in kwargs
+
+    # Verify handle_command_error was called
+    cog.handle_command_error.assert_called_once()
+    error_args = cog.handle_command_error.call_args[0]
+    assert interaction in error_args
+    assert isinstance(error_args[1], FileNotFoundError)
 
 @pytest.mark.asyncio
 async def test_terms_command(cog, interaction):
