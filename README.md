@@ -66,6 +66,12 @@ python bot.py
 - `/privacy` - Privacy policy
 - `/terms` - Terms of service
 - `/diy` - DIY TRMNL information
+- `/search` - Search TRMNL documentation
+- `/status` - Show bot status and metrics
+- `/support` - Get support information
+- `/feedback` - Submit feedback
+- `/changelog` - View recent updates
+- `/pipeline` - See upcoming features
 
 ## Development
 
