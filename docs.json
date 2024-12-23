@@ -1,0 +1,85 @@
+{
+    "categories": {
+        "main": {
+            "title": "Main Resources",
+            "commands": ["home", "docs", "framework"],
+            "links": {
+                "TRMNL Website": "https://usetrmnl.com",
+                "Documentation": "https://docs.usetrmnl.com",
+                "Framework": "https://usetrmnl.com/framework",
+                "Integrations": "https://usetrmnl.com/integrations"
+            }
+        },
+        "blog": {
+            "title": "Blog & Updates",
+            "commands": ["news", "updates"],
+            "links": {
+                "Town Hall": "https://usetrmnl.com/blog/town-hall",
+                "Design System": "https://usetrmnl.com/blog/design-system",
+                "Developer Edition": "https://usetrmnl.com/blog/developer-edition",
+                "Batch 1 Update": "https://usetrmnl.com/blog/batch-1-sold-out"
+            }
+        },
+        "legal": {
+            "title": "Legal Information",
+            "commands": ["privacy", "terms"],
+            "links": {
+                "Privacy Policy": "https://usetrmnl.com/privacy",
+                "Terms of Service": "https://usetrmnl.com/terms"
+            }
+        },
+        "diy": {
+            "title": "DIY TRMNL",
+            "commands": ["diy"],
+            "links": {
+                "Introduction": "https://docs.usetrmnl.com/go/diy/introduction",
+                "BYOD": "https://docs.usetrmnl.com/go/diy/byod",
+                "BYOD/S": "https://docs.usetrmnl.com/go/diy/byod-s",
+                "BYOS": "https://docs.usetrmnl.com/go/diy/byos"
+            }
+        }
+    },
+    "docs": {
+        "home": {
+            "title": "TRMNL Resources",
+            "content": "**Main TRMNL Resources:**\n- Official website with product information\n- Complete documentation\n- Framework and design system\n- Integration guides and tools",
+            "links": {
+                "Website": "https://usetrmnl.com",
+                "Documentation": "https://docs.usetrmnl.com"
+            }
+        },
+        "framework": {
+            "title": "TRMNL Framework",
+            "content": "**TRMNL Framework:**\n- Design system components\n- Development tools and utilities\n- Integration guidelines\n- Best practices and examples",
+            "links": {
+                "Framework Documentation": "https://usetrmnl.com/framework"
+            }
+        },
+        "news": {
+            "title": "Latest Updates",
+            "content": "**Recent TRMNL News:**\n- Batch 1 has sold out\n- Developer Edition announcement\n- Design System launch\n- Town Hall meeting updates",
+            "links": {
+                "Latest Update": "https://usetrmnl.com/blog/batch-1-sold-out",
+                "Developer Edition": "https://usetrmnl.com/blog/developer-edition",
+                "Design System Blog": "https://usetrmnl.com/blog/design-system"
+            }
+        },
+        "privacy": {
+            "title": "Privacy Information",
+            "content": "**Privacy & Data Protection:**\n- Data collection policies\n- User privacy protections\n- Data handling practices\n- Privacy rights and controls",
+            "links": {
+                "Privacy Policy": "https://usetrmnl.com/privacy"
+            }
+        },
+        "diy": {
+            "title": "DIY TRMNL",
+            "content": "**LOREM IPSUM",
+            "links": {
+                "Introduction": "https://docs.usetrmnl.com/go/diy/introduction",
+                "BYOD": "https://docs.usetrmnl.com/go/diy/byod",
+                "BYOD/S": "https://docs.usetrmnl.com/go/diy/byod-s",
+                "BYOS": "https://docs.usetrmnl.com/go/diy/byos"
+            }
+        }
+    }
+}
