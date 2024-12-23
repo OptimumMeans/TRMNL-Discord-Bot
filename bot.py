@@ -25,6 +25,7 @@ class DiscordBot(commands.Bot):
             help_command=None,
         )
         self.config = config
+        self.feedback_channel_id = config.get('feedback_channel_id')
 
     async def setup_hook(self) -> None:
         """
