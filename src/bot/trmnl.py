@@ -3,24 +3,81 @@ from discord import app_commands
 from discord.ext import commands
 from pathlib import Path
 import json
+import time
+from typing import Optional, Dict
+from datetime import datetime
 from .rate_limiter import RateLimitedCog
 
-class trmnl(RateLimitedCog):
+class TRMNLMetrics:
+    def __init__(self):
+        self.command_usage = {}
+        self.admin_usage = {}
+        self.last_errors = []
+        
+    def log_command(self, command_name: str, user_id: str):
+        if command_name not in self.command_usage:
+            self.command_usage[command_name] = []
+        self.command_usage[command_name].append({
+            'timestamp': datetime.now().isoformat(),
+            'user_id': user_id
+        })
+        
+    def log_admin_action(self, command_name: str, user_id: str):
+        if command_name not in self.admin_usage:
+            self.admin_usage[command_name] = []
+        self.admin_usage[command_name].append({
+            'timestamp': datetime.now().isoformat(),
+            'user_id': user_id
+        })
+
+    def log_error(self, error: Exception, command_name: str):
+        self.last_errors.append({
+            'timestamp': datetime.now().isoformat(),
+            'command': command_name,
+            'error': str(error)
+        })
+        self.last_errors = self.last_errors[-100:]
+
+class DocCache:
+    def __init__(self, ttl_seconds: int = 3600):
+        self.cache = {}
+        self.ttl = ttl_seconds
+        self.last_update = 0
+        
+    def needs_refresh(self) -> bool:
+        return time.time() - self.last_update > self.ttl
+        
+    def update(self, docs_data: dict):
+        self.cache = docs_data
+        self.last_update = time.time()
+        
+    def get(self, key: str) -> Optional[dict]:
+        return self.cache.get(key)
+
+class TRMNL(RateLimitedCog):
     def __init__(self, bot) -> None:
-        super().__init__(bot)  # Initialize the rate limiter
+        super().__init__(bot)
         self.bot = bot
-        self.reload_docs()
-    
-    def reload_docs(self) -> None:
-        """Reload the docs.json file"""
+        self.metrics = TRMNLMetrics()
+        self.doc_cache = DocCache()
+        self.feedback_channel_id = self.bot.config.get('feedback_channel_id')  
+        #1) Create dedicated channel only admin uses
+        #2) Get Channel ID
+        #3) Insert where 'None' sits now and config.json
+        self.load_docs()
+        
+    def load_docs(self) -> None:
+        """Load or reload the docs.json file"""
+        if not self.doc_cache.needs_refresh() and self.doc_cache.cache:
+            return  # Use cached data if it's still valid
+            
         docs_path = Path(__file__).parents[2] / "docs.json"
         with open(docs_path, 'r') as f:
-            self.docs_data = json.load(f)
+            docs_data = json.load(f)
+            self.doc_cache.update(docs_data)
+            self.docs_data = docs_data  # Keep for backward compatibility
 
-    @app_commands.command(
-        name="sync",
-        description="Sync all slash commands"
-    )
+    @app_commands.command(name="sync", description="Sync all slash commands")
     @app_commands.default_permissions(administrator=True)
     async def sync(self, interaction: discord.Interaction) -> None:
         """
@@ -31,44 +88,112 @@ class trmnl(RateLimitedCog):
             if not await self.handle_rate_limit(interaction, "sync"):
                 return
 
+            # Defer the response to prevent timeout
+            await interaction.response.defer(ephemeral=True)
+            
+            # Sync commands
             synced = await self.bot.tree.sync()
+            
+            # Send the follow-up
             embed = discord.Embed(
                 title="Slash Commands Synced",
                 description=f"Successfully synced {len(synced)} commands.",
                 color=0x00FF00
             )
-            await interaction.response.send_message(embed=embed)
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            self.metrics.log_admin_action("sync", str(interaction.user.id))
+            
         except Exception as e:
-            await self.handle_command_error(interaction, e)
+            try:
+                await interaction.followup.send(
+                    "An error occurred while syncing commands.",
+                    ephemeral=True
+                )
+            except:
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(
+                        "An error occurred while syncing commands.",
+                        ephemeral=True
+                    )
+            self.metrics.log_error(e, "sync")
 
-    @app_commands.command(
-        name="reload_docs",
-        description="Reload the docs.json file"
-    )
+    @app_commands.command(name="reload_docs", description="Reload the docs.json file")
     @app_commands.default_permissions(administrator=True)
     async def reload_docs_command(self, interaction: discord.Interaction) -> None:
-        """
-        Reload the docs.json file.
-        Only administrators can use this command.
-        """
         try:
             if not await self.handle_rate_limit(interaction, "reload_docs"):
                 return
 
-            self.reload_docs()
+            self.load_docs()
             embed = discord.Embed(
                 title="Docs Reloaded",
                 description="Successfully reloaded docs.json",
                 color=0x00FF00
             )
             await interaction.response.send_message(embed=embed)
+            self.metrics.log_admin_action("reload_docs", str(interaction.user.id))
         except Exception as e:
             await self.handle_command_error(interaction, e)
 
-    @app_commands.command(
-        name="home",
-        description="Get main TRMNL resources and information"
-    )
+    @app_commands.command(name="status", description="Show bot status and latency")
+    async def status(self, interaction: discord.Interaction) -> None:
+        try:
+            if not await self.handle_rate_limit(interaction, "status"):
+                return
+
+            latency = round(self.bot.latency * 1000)
+            command_count = sum(len(usages) for usages in self.metrics.command_usage.values())
+            
+            embed = discord.Embed(
+                title="TRMNL Bot Status",
+                color=discord.Color.green()
+            )
+            embed.add_field(name="Latency", value=f"{latency}ms")
+            embed.add_field(name="Commands Used", value=str(command_count))
+            
+            await interaction.response.send_message(embed=embed)
+            self.metrics.log_command("status", str(interaction.user.id))
+        except Exception as e:
+            self.metrics.log_error(e, "status")
+            await self.handle_command_error(interaction, e)
+
+    @app_commands.command(name="search", description="Search TRMNL documentation")
+    async def search(self, interaction: discord.Interaction, query: str) -> None:
+        try:
+            if not await self.handle_rate_limit(interaction, "search"):
+                return
+
+            if len(query) < 2:
+                await interaction.response.send_message(
+                    "Search query must be at least 2 characters long.",
+                    ephemeral=True
+                )
+                return
+                
+            results = []
+            for category in self.docs_data["categories"].values():
+                for name, url in category.get("links", {}).items():
+                    if query.lower() in name.lower():
+                        results.append((name, url))
+                        
+            embed = discord.Embed(
+                title=f"Search Results for '{query}'",
+                color=discord.Color.blue()
+            )
+            
+            if results:
+                for name, url in results[:5]:
+                    embed.add_field(name=name, value=url, inline=False)
+            else:
+                embed.description = "No results found."
+                
+            await interaction.response.send_message(embed=embed)
+            self.metrics.log_command("search", str(interaction.user.id))
+        except Exception as e:
+            self.metrics.log_error(e, "search")
+            await self.handle_command_error(interaction, e)
+
+    @app_commands.command(name="home", description="Get main TRMNL resources and information")
     async def home(self, interaction: discord.Interaction) -> None:
         try:
             if not await self.handle_rate_limit(interaction, "home"):
@@ -83,13 +208,12 @@ class trmnl(RateLimitedCog):
             for name, url in doc["links"].items():
                 embed.add_field(name=name, value=url, inline=False)
             await interaction.response.send_message(embed=embed)
+            self.metrics.log_command("home", str(interaction.user.id))
         except Exception as e:
+            self.metrics.log_error(e, "home")
             await self.handle_command_error(interaction, e)
 
-    @app_commands.command(
-        name="docs",
-        description="Get TRMNL documentation links"
-    )
+    @app_commands.command(name="docs", description="Get TRMNL documentation links")
     async def docs(self, interaction: discord.Interaction) -> None:
         try:
             if not await self.handle_rate_limit(interaction, "docs"):
@@ -104,13 +228,12 @@ class trmnl(RateLimitedCog):
             for name, url in main_links.items():
                 embed.add_field(name=name, value=url, inline=False)
             await interaction.response.send_message(embed=embed)
+            self.metrics.log_command("docs", str(interaction.user.id))
         except Exception as e:
+            self.metrics.log_error(e, "docs")
             await self.handle_command_error(interaction, e)
 
-    @app_commands.command(
-        name="framework",
-        description="Get TRMNL framework documentation"
-    )
+    @app_commands.command(name="framework", description="Get TRMNL framework documentation")
     async def framework(self, interaction: discord.Interaction) -> None:
         try:
             if not await self.handle_rate_limit(interaction, "framework"):
@@ -125,13 +248,12 @@ class trmnl(RateLimitedCog):
             for name, url in doc["links"].items():
                 embed.add_field(name=name, value=url, inline=False)
             await interaction.response.send_message(embed=embed)
+            self.metrics.log_command("framework", str(interaction.user.id))
         except Exception as e:
+            self.metrics.log_error(e, "framework")
             await self.handle_command_error(interaction, e)
 
-    @app_commands.command(
-        name="news",
-        description="Get latest TRMNL news and updates"
-    )
+    @app_commands.command(name="news", description="Get latest TRMNL news and updates")
     async def news(self, interaction: discord.Interaction) -> None:
         try:
             if not await self.handle_rate_limit(interaction, "news"):
@@ -146,13 +268,12 @@ class trmnl(RateLimitedCog):
             for name, url in doc["links"].items():
                 embed.add_field(name=name, value=url, inline=False)
             await interaction.response.send_message(embed=embed)
+            self.metrics.log_command("news", str(interaction.user.id))
         except Exception as e:
+            self.metrics.log_error(e, "news")
             await self.handle_command_error(interaction, e)
 
-    @app_commands.command(
-        name="updates",
-        description="Get all TRMNL blog posts and updates"
-    )
+    @app_commands.command(name="updates", description="Get all TRMNL blog posts and updates")
     async def updates(self, interaction: discord.Interaction) -> None:
         try:
             if not await self.handle_rate_limit(interaction, "updates"):
@@ -167,13 +288,12 @@ class trmnl(RateLimitedCog):
             for name, url in blog_links.items():
                 embed.add_field(name=name, value=url, inline=False)
             await interaction.response.send_message(embed=embed)
+            self.metrics.log_command("updates", str(interaction.user.id))
         except Exception as e:
+            self.metrics.log_error(e, "updates")
             await self.handle_command_error(interaction, e)
 
-    @app_commands.command(
-        name="privacy",
-        description="Get TRMNL privacy policy information"
-    )
+    @app_commands.command(name="privacy", description="Get TRMNL privacy policy information")
     async def privacy(self, interaction: discord.Interaction) -> None:
         try:
             if not await self.handle_rate_limit(interaction, "privacy"):
@@ -188,13 +308,12 @@ class trmnl(RateLimitedCog):
             for name, url in doc["links"].items():
                 embed.add_field(name=name, value=url, inline=False)
             await interaction.response.send_message(embed=embed)
+            self.metrics.log_command("privacy", str(interaction.user.id))
         except Exception as e:
+            self.metrics.log_error(e, "privacy")
             await self.handle_command_error(interaction, e)
 
-    @app_commands.command(
-        name="terms",
-        description="Get TRMNL terms of service"
-    )
+    @app_commands.command(name="terms", description="Get TRMNL terms of service")
     async def terms(self, interaction: discord.Interaction) -> None:
         try:
             if not await self.handle_rate_limit(interaction, "terms"):
@@ -208,13 +327,12 @@ class trmnl(RateLimitedCog):
             )
             embed.add_field(name="Terms of Service", value=legal_links["Terms of Service"], inline=False)
             await interaction.response.send_message(embed=embed)
+            self.metrics.log_command("terms", str(interaction.user.id))
         except Exception as e:
+            self.metrics.log_error(e, "terms")
             await self.handle_command_error(interaction, e)
 
-    @app_commands.command(
-        name="diy",
-        description="Get information about DIY TRMNL options"
-    )
+    @app_commands.command(name="diy", description="Get information about DIY TRMNL options")
     async def diy(self, interaction: discord.Interaction) -> None:
         try:
             if not await self.handle_rate_limit(interaction, "diy"):
@@ -229,8 +347,130 @@ class trmnl(RateLimitedCog):
             for name, url in doc["links"].items():
                 embed.add_field(name=name, value=url, inline=False)
             await interaction.response.send_message(embed=embed)
+            self.metrics.log_command("diy", str(interaction.user.id))
         except Exception as e:
+            self.metrics.log_error(e, "diy")
+            await self.handle_command_error(interaction, e)
+
+    @app_commands.command(name="changelog", description="Show recent bot updates")
+    async def changelog(self, interaction: discord.Interaction) -> None:
+        try:
+            if not await self.handle_rate_limit(interaction, "changelog"):
+                return
+
+            with open('UPDATES.md', 'r') as f:
+                content = f.read()
+                
+            embed = discord.Embed(
+                title="TRMNL Bot Changelog",
+                color=discord.Color.blue()
+            )
+            
+            version_info = content.split('##')[1] if '##' in content else content
+            embed.description = version_info[:4000]  # Discord embed limit
+            
+            await interaction.response.send_message(embed=embed)
+            self.metrics.log_command("changelog", str(interaction.user.id))
+        except Exception as e:
+            self.metrics.log_error(e, "changelog")
+            await self.handle_command_error(interaction, e)
+
+    @app_commands.command(name="support", description="Get TRMNL support information")
+    async def support(self, interaction: discord.Interaction) -> None:
+        try:
+            if not await self.handle_rate_limit(interaction, "support"):
+                return
+
+            embed = discord.Embed(
+                title="TRMNL Support",
+                description="Need help with TRMNL? Here's how to get support:",
+                color=discord.Color.blue()
+            )
+            embed.add_field(
+                name="Documentation",
+                value="https://docs.usetrmnl.com",
+                inline=False
+            )
+            embed.add_field(
+                name="Discord Community",
+                value="https://discord.gg/trmnl",
+                inline=False
+            )
+            
+            await interaction.response.send_message(embed=embed)
+            self.metrics.log_command("support", str(interaction.user.id))
+        except Exception as e:
+            self.metrics.log_error(e, "support")
+            await self.handle_command_error(interaction, e)
+
+    @app_commands.command(name="feedback", description="Submit feedback about TRMNL")
+    async def feedback(self, interaction: discord.Interaction, message: str) -> None:
+        try:
+            if not await self.handle_rate_limit(interaction, "feedback"):
+                return
+
+            if len(message) < 10:
+                await interaction.response.send_message(
+                    "Feedback message must be at least 10 characters long.",
+                    ephemeral=True
+                )
+                return
+                
+            if self.feedback_channel_id:
+                feedback_channel = self.bot.get_channel(self.feedback_channel_id)
+                if feedback_channel:
+                    embed = discord.Embed(
+                        title="User Feedback",
+                        description=message,
+                        color=discord.Color.blue()
+                    )
+                    embed.set_footer(text=f"From: {interaction.user.name}")
+                    await feedback_channel.send(embed=embed)
+                    
+            await interaction.response.send_message(
+                "Thank you for your feedback!",
+                ephemeral=True
+            )
+            self.metrics.log_command("feedback", str(interaction.user.id))
+        except Exception as e:
+            self.metrics.log_error(e, "feedback")
+            await self.handle_command_error(interaction, e)
+            
+    @app_commands.command(
+        name="pipeline",
+        description="See upcoming TRMNL features and releases"
+    )
+    async def pipeline(self, interaction: discord.Interaction) -> None:
+        try:
+            if not await self.handle_rate_limit(interaction, "pipeline"):
+                return
+
+            doc = self.docs_data["docs"]["pipeline"]
+            embed = discord.Embed(
+                title=doc["title"],
+                description=doc["content"],
+                color=0x7289DA  # Discord Blurple color
+            )
+            
+            # Add roadmap and feedback links if available
+            for name, url in doc["links"].items():
+                embed.add_field(name=name, value=url, inline=False)
+            
+            # Add a note about changelog
+            embed.add_field(
+                name="Want to see past updates?",
+                value="Use `/changelog` to view released updates!",
+                inline=False
+            )
+            
+            embed.set_footer(text="Release dates are tentative and subject to change.")
+            
+            await interaction.response.send_message(embed=embed)
+            self.metrics.log_command("pipeline", str(interaction.user.id))
+            
+        except Exception as e:
+            self.metrics.log_error(e, "pipeline")
             await self.handle_command_error(interaction, e)
 
 async def setup(bot) -> None:
-    await bot.add_cog(trmnl(bot))
+    await bot.add_cog(TRMNL(bot))

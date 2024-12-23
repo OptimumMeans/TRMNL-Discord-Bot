@@ -1,42 +1,55 @@
 # TRMNL Discord Bot Updates
 
-## Version 1.0.0 (2024-12-23)
+## Latest Release - Version 2.0.0
+*Released December 23, 2024*
 
-### Features
-- Initial release of TRMNL Discord Bot
-- Implemented core documentation access commands
-- Added rate limiting system to prevent API abuse
-- Setup basic command structure with slash commands
-- Integrated with TRMNL documentation system
+### Major Features
+- Added search functionality for documentation
+- Added status monitoring and metrics
+- Added feedback system with dedicated channel
+- Added support command and resources
+- Added changelog command
+- Added pipeline/roadmap command
+- Improved error handling and logging
+- Added message component support
+- Added documentation caching system
+- Added metrics tracking
 
-### Commands Added
-- `/home` - Main TRMNL resources
-- `/docs` - Documentation links 
-- `/framework` - Framework documentation
-- `/news` - Latest updates
-- `/updates` - All blog posts
-- `/privacy` - Privacy policy
-- `/terms` - Terms of service
-- `/diy` - DIY TRMNL information
+### New Commands
+| Command | Description |
+|---------|-------------|
+| `/search` | Search TRMNL documentation |
+| `/status` | Show bot status and metrics |
+| `/support` | Get support information |
+| `/feedback` | Submit feedback |
+| `/changelog` | View recent updates |
+| `/pipeline` | See upcoming features |
 
-### Admin Commands
-- `/sync` - Sync slash commands
-- `/reload_docs` - Reload documentation cache
-
-### Technical Features
-- Rate limiting system with bucket management
-- Error handling and logging
-- Documentation caching
-- Permission management
-- Embed message formatting
+### Technical Improvements
+- Added DocCache system for performance
+- Added TRMNLMetrics for usage tracking
+- Improved error handling with detailed logging
+- Enhanced rate limiting system
+- Added support for message components
+- Added feedback channel configuration
 
 ### Requirements
-- Python 3.11+
-- discord.py 2.3.0+
-- python-dotenv 1.0.0+
-- aiohttp 3.8.0+
+```
+Python 3.11+
+discord.py 2.3.0+
+python-dotenv 1.0.0+
+aiohttp 3.8.0+
+```
 
-### Notes
-- Initial release focusing on documentation access
-- Future updates will include more interactive features
-- Rate limiting system in place for Discord API compliance
+---
+
+## Previous Releases
+
+### Version 1.0.0
+*Released December 23, 2024*
+
+Initial release with core documentation access commands, basic slash command structure, and rate limiting system. Added basic commands for accessing TRMNL resources, documentation, and DIY information. Implemented admin commands for syncing and reloading documentation.
+
+---
+
+*For more detailed information about setup and usage, please see the [main README](README.md).*
