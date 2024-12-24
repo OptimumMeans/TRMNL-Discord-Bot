@@ -1,5 +1,6 @@
 import pytest
 import time
+import asyncio
 from src.bot.rate_limiter import RateLimitManager, DiscordRateLimit
 
 @pytest.fixture
@@ -83,3 +84,42 @@ def test_rate_limit_reset(rate_limiter):
     
     # Should be able to make request again
     assert rate_limiter.check_rate_limit('test_bucket') is None
+    
+@pytest.mark.asyncio
+async def test_global_rate_limit(rate_limiter):
+    """Test global rate limit handling"""
+    # Use up global limit
+    for _ in range(50):
+        assert rate_limiter.check_rate_limit("test") is None
+    
+    # Should be rate limited
+    wait_time = rate_limiter.check_rate_limit("test")
+    assert isinstance(wait_time, float)
+    assert wait_time > 0
+    
+    # Wait for reset
+    await asyncio.sleep(1.0)
+    assert rate_limiter.check_rate_limit("test") is None
+
+@pytest.mark.asyncio
+async def test_concurrent_requests(rate_limiter):
+    """Test handling of concurrent requests"""
+    headers = {
+        'X-RateLimit-Limit': '5',
+        'X-RateLimit-Remaining': '5',
+        'X-RateLimit-Reset-After': '1.0',
+        'X-RateLimit-Bucket': 'test_bucket'
+    }
+    rate_limiter.update_rate_limits(headers)
+    
+    async def make_request():
+        return rate_limiter.check_rate_limit('test_bucket')
+    
+    # Make concurrent requests
+    tasks = [make_request() for _ in range(10)]
+    results = await asyncio.gather(*tasks)
+    
+    # First 5 should succeed, rest should be rate limited
+    success_count = sum(1 for r in results if r is None)
+    assert success_count == 5
+    assert all(isinstance(r, float) for r in results[5:])

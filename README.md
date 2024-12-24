@@ -9,6 +9,12 @@ The official Discord bot for the TRMNL community. This bot provides easy access 
 - DIY TRMNL guides and information
 - Privacy policy and terms of service information
 - Framework documentation access
+- Search functionality for documentation
+- Status monitoring and metrics
+- Feedback system with dedicated channel
+- Support resources and information
+- Changelog viewing
+- Pipeline/roadmap visibility
 
 ## Setup Instructions
 
@@ -36,6 +42,7 @@ DISCORD_TOKEN=your_bot_token_here
 3. Configure `config.json`:
    - Set your desired command prefix
    - Add your bot's invite link
+   - Configure feedback channel ID (for feedback command)
 
 ### Installation
 
@@ -58,6 +65,7 @@ python bot.py
 
 ## Command Reference
 
+### General Commands
 - `/home` - Main TRMNL resources
 - `/docs` - Documentation links
 - `/framework` - Framework documentation
@@ -66,12 +74,18 @@ python bot.py
 - `/privacy` - Privacy policy
 - `/terms` - Terms of service
 - `/diy` - DIY TRMNL information
+
+### New Features
 - `/search` - Search TRMNL documentation
 - `/status` - Show bot status and metrics
 - `/support` - Get support information
 - `/feedback` - Submit feedback
 - `/changelog` - View recent updates
 - `/pipeline` - See upcoming features
+
+### Admin Commands
+- `/sync` - Sync slash commands
+- `/reload_docs` - Reload documentation cache
 
 ## Development
 
@@ -82,6 +96,14 @@ Commands are managed in `src/bot/trmnl.py`. Each command is implemented as a sla
 ### Documentation Updates
 
 Resource links and documentation content are managed in `docs.json`. Update this file to modify command responses.
+
+### Key Components
+
+- **DocCache**: Handles caching of documentation content
+- **TRMNLMetrics**: Tracks command usage and metrics
+- **HealthMonitor**: Monitors bot health and performance
+- **BotLogger**: Handles logging configuration
+- **RateLimitManager**: Manages API rate limiting
 
 ## Support
 

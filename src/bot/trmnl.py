@@ -7,6 +7,73 @@ import time
 from typing import Optional, Dict
 from datetime import datetime
 from .rate_limiter import RateLimitedCog
+from .logger import BotLogger
+from .health import HealthMonitor
+
+class TrmnlBot:
+    def __init__(self, config):
+        self.config = config
+        
+        # Initialize logging and health monitoring
+        self.logger = BotLogger(config)
+        intents = discord.Intents.default()
+        intents.message_content = True
+        
+        self.bot = commands.Bot(
+            command_prefix=config.get('prefix', '!'),
+            intents=intents
+        )
+        self.health = HealthMonitor(self.bot)
+        
+        # Set up event handlers
+        @self.bot.event
+        async def on_command(ctx):
+            self.logger.log_command(ctx)
+            self.health.increment_commands()
+
+        @self.bot.event
+        async def on_command_error(ctx, error):
+            self.logger.log_error(error, ctx)
+            self.health.log_error(error)
+            
+            if isinstance(error, commands.CommandNotFound):
+                await ctx.send("Command not found.")
+            elif isinstance(error, commands.MissingPermissions):
+                await ctx.send("You don't have permission to use this command.")
+        
+        # Add health check command
+        @self.bot.command(name="health")
+        @commands.has_permissions(administrator=True)
+        async def health_check(ctx):
+            """Get bot health metrics"""
+            metrics = self.health.get_health_metrics()
+            
+            embed = discord.Embed(
+                title="TRMNL Bot Health Metrics",
+                color=discord.Color.blue(),
+                timestamp=ctx.message.created_at
+            )
+            
+            for key, value in metrics.items():
+                if key == 'last_error' and value:
+                    embed.add_field(
+                        name=key.replace('_', ' ').title(),
+                        value=f"```{value['error']}\nat {value['time']}```",
+                        inline=False
+                    )
+                else:
+                    embed.add_field(
+                        name=key.replace('_', ' ').title(),
+                        value=str(value),
+                        inline=True
+                    )
+            
+            await ctx.send(embed=embed)
+
+        @health_check.error
+        async def health_error(ctx, error):
+            if isinstance(error, commands.MissingPermissions):
+                await ctx.send("You need administrator permissions to use this command.")
 
 class TRMNLMetrics:
     def __init__(self):
@@ -164,8 +231,13 @@ class TRMNL(RateLimitedCog):
                 return
 
             if len(query) < 2:
+                embed = discord.Embed(
+                    title="Invalid Search",
+                    description="Search query must be at least 2 characters long.",
+                    color=discord.Color.red()
+                )
                 await interaction.response.send_message(
-                    "Search query must be at least 2 characters long.",
+                    embed=embed,
                     ephemeral=True
                 )
                 return
@@ -410,8 +482,13 @@ class TRMNL(RateLimitedCog):
                 return
 
             if len(message) < 10:
+                embed = discord.Embed(
+                    title="Invalid Feedback",
+                    description="Feedback message must be at least 10 characters long.",
+                    color=discord.Color.red()
+                )
                 await interaction.response.send_message(
-                    "Feedback message must be at least 10 characters long.",
+                    embed=embed,
                     ephemeral=True
                 )
                 return

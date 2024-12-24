@@ -10,10 +10,14 @@
 - Added support command and resources
 - Added changelog command
 - Added pipeline/roadmap command
-- Improved error handling and logging
+- Added DocCache system for documentation performance
+- Added TRMNLMetrics for command tracking
+- Added HealthMonitor for bot performance monitoring
+- Added BotLogger for improved logging
+- Improved error handling with detailed error tracking
+- Enhanced rate limiting system
 - Added message component support
-- Added documentation caching system
-- Added metrics tracking
+- Added feedback channel configuration
 
 ### New Commands
 | Command | Description |
@@ -26,12 +30,43 @@
 | `/pipeline` | See upcoming features |
 
 ### Technical Improvements
-- Added DocCache system for performance
-- Added TRMNLMetrics for usage tracking
-- Improved error handling with detailed logging
-- Enhanced rate limiting system
-- Added support for message components
-- Added feedback channel configuration
+- **DocCache System**
+  - Improved documentation loading performance
+  - TTL-based cache invalidation
+  - Reduced API load
+  
+- **TRMNLMetrics**
+  - Command usage tracking
+  - Admin action logging
+  - Error tracking and analysis
+  - Usage statistics
+
+- **HealthMonitor**
+  - Uptime tracking
+  - Command count monitoring
+  - Error rate monitoring
+  - Guild count tracking
+  - Performance metrics
+
+- **BotLogger**
+  - Configurable logging levels
+  - Command execution logging
+  - Error tracking with context
+  - Discord.py event logging
+
+- **Rate Limiting**
+  - Enhanced bucket management
+  - Global rate limit handling
+  - Invalid request tracking
+  - Cloudflare ban prevention
+  - Detailed rate limit feedback
+
+### Bug Fixes
+- Fixed inconsistent error handling
+- Improved command failure recovery
+- Enhanced rate limit precision
+- Fixed documentation reload issues
+- Improved error message clarity
 
 ### Requirements
 ```
@@ -39,6 +74,10 @@ Python 3.11+
 discord.py 2.3.0+
 python-dotenv 1.0.0+
 aiohttp 3.8.0+
+typing-extensions 4.7.0+
+pytest 7.4.0+
+pytest-asyncio 0.21.1+
+pytest-cov 4.1.0+
 ```
 
 ---
@@ -48,7 +87,29 @@ aiohttp 3.8.0+
 ### Version 1.0.0
 *Released December 23, 2024*
 
-Initial release with core documentation access commands, basic slash command structure, and rate limiting system. Added basic commands for accessing TRMNL resources, documentation, and DIY information. Implemented admin commands for syncing and reloading documentation.
+Initial release with core documentation access commands, basic slash command structure, and rate limiting system.
+
+#### Features
+- Core documentation access commands
+- Basic slash command structure
+- Initial rate limiting system
+- TRMNL documentation integration
+- Basic error handling
+- Admin commands for maintenance
+
+#### Commands
+- `/home` - Main TRMNL resources
+- `/docs` - Documentation links
+- `/framework` - Framework documentation
+- `/news` - Latest updates
+- `/updates` - All blog posts
+- `/privacy` - Privacy policy
+- `/terms` - Terms of service
+- `/diy` - DIY TRMNL information
+
+#### Admin Commands
+- `/sync` - Sync slash commands
+- `/reload_docs` - Reload documentation cache
 
 ---
 

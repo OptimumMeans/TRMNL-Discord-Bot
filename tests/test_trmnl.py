@@ -216,3 +216,43 @@ async def test_diy_command(cog, interaction):
     args = interaction.response.send_message.call_args[1]
     assert isinstance(args["embed"], discord.Embed)
     assert "DIY TRMNL" in args["embed"].title
+    
+@pytest.mark.asyncio
+async def test_search_functionality(cog, interaction):
+    """Test search command with various queries"""
+    cog.handle_rate_limit = AsyncMock(return_value=True)
+    
+    # Test valid search
+    await cog.search.callback(cog, interaction, "framework")
+    assert interaction.response.send_message.called
+    args = interaction.response.send_message.call_args[1]
+    assert isinstance(args["embed"], discord.Embed)
+    assert "framework" in args["embed"].title.lower()
+    
+    # Test short query
+    interaction.response.send_message.reset_mock()
+    await cog.search.callback(cog, interaction, "a")
+    args = interaction.response.send_message.call_args[1]
+    assert isinstance(args["embed"], discord.Embed)
+    assert "at least 2 characters" in args["embed"].description
+
+@pytest.mark.asyncio
+async def test_feedback_system(cog, interaction):
+    """Test feedback command and channel functionality"""
+    cog.handle_rate_limit = AsyncMock(return_value=True)
+    
+    # Test valid feedback
+    feedback_channel = AsyncMock()
+    cog.bot.get_channel = MagicMock(return_value=feedback_channel)
+    
+    await cog.feedback.callback(cog, interaction, "This is a test feedback message")
+    assert feedback_channel.send.called
+    args = feedback_channel.send.call_args[1]
+    assert "test feedback message" in args["embed"].description
+    
+    # Test short feedback
+    interaction.response.send_message.reset_mock()
+    await cog.feedback.callback(cog, interaction, "short")
+    args = interaction.response.send_message.call_args[1]
+    assert isinstance(args["embed"], discord.Embed)
+    assert "at least 10 characters" in args["embed"].description
