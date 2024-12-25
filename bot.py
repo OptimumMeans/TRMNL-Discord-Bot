@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 import platform
@@ -8,25 +7,27 @@ from discord import app_commands
 from discord.ext import commands
 from dotenv import load_dotenv
 
-if not os.path.isfile(f"{os.path.realpath(os.path.dirname(__file__))}/config.json"):
-    sys.exit("'config.json' not found! Please add it and try again.")
-else:
-    with open(f"{os.path.realpath(os.path.dirname(__file__))}/config.json") as file:
-        config = json.load(file)
+load_dotenv()
 
-# Setup intents with message content enabled
 intents = discord.Intents.default()
 intents.message_content = True
 
 class DiscordBot(commands.Bot):
     def __init__(self) -> None:
         super().__init__(
-            command_prefix="!",
+            command_prefix=os.getenv('BOT_PREFIX', '!'),
             intents=intents,
             help_command=None,
         )
-        self.config = config
-        self.feedback_channel_id = config.get('feedback_channel_id')
+        # Use environment variables instead of config.json
+        self.config = {
+            'prefix': os.getenv('BOT_PREFIX', '!'),
+            'feedback_channel_id': os.getenv('FEEDBACK_CHANNEL_ID'),
+            'health_report_channel_id': os.getenv('HEALTH_REPORT_CHANNEL_ID'),
+            'log_level': os.getenv('LOG_LEVEL', 'INFO'),
+            'log_file': None  # Use console logging for Heroku
+        }
+        self.feedback_channel_id = self.config.get('feedback_channel_id')
 
     async def setup_hook(self) -> None:
         """
@@ -39,12 +40,11 @@ class DiscordBot(commands.Bot):
         
         # Load extensions - health must be loaded first
         await self.load_extension("src.bot.health")
-        # Store reference to health monitor after loading
+        
         self.health = self.get_cog("HealthMonitor")
         
         await self.load_extension("src.bot.trmnl")
         
-        # Add graceful sync with print statements
         print("Starting command sync...")
         try:
             print("Syncing commands...")
@@ -59,6 +59,5 @@ class DiscordBot(commands.Bot):
         else:
             await interaction.response.send_message(f'An error occurred: {error}', ephemeral=True)
 
-load_dotenv()
 bot = DiscordBot()
 bot.run(os.getenv("DISCORD_TOKEN"))
