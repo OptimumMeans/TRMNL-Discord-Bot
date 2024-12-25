@@ -9,13 +9,14 @@ from datetime import datetime
 from .rate_limiter import RateLimitedCog
 from .logger import BotLogger
 from .health import HealthMonitor
+import logging
+from datetime import UTC
 
 class TrmnlBot:
     def __init__(self, config):
         self.config = config
         
         # Initialize logging and health monitoring
-        self.logger = BotLogger(config)
         intents = discord.Intents.default()
         intents.message_content = True
         
@@ -23,57 +24,28 @@ class TrmnlBot:
             command_prefix=config.get('prefix', '!'),
             intents=intents
         )
-        self.health = HealthMonitor(self.bot)
+        
+        # Create logger
+        self.logger = BotLogger(config)
         
         # Set up event handlers
         @self.bot.event
         async def on_command(ctx):
             self.logger.log_command(ctx)
-            self.health.increment_commands()
+            # Health monitor will be available via bot.health after setup
+            if hasattr(self.bot, 'health'):
+                self.bot.health.increment_commands()
 
         @self.bot.event
         async def on_command_error(ctx, error):
             self.logger.log_error(error, ctx)
-            self.health.log_error(error)
+            if hasattr(self.bot, 'health'):
+                self.bot.health.log_error(error)
             
             if isinstance(error, commands.CommandNotFound):
                 await ctx.send("Command not found.")
             elif isinstance(error, commands.MissingPermissions):
                 await ctx.send("You don't have permission to use this command.")
-        
-        # Add health check command
-        @self.bot.command(name="health")
-        @commands.has_permissions(administrator=True)
-        async def health_check(ctx):
-            """Get bot health metrics"""
-            metrics = self.health.get_health_metrics()
-            
-            embed = discord.Embed(
-                title="TRMNL Bot Health Metrics",
-                color=discord.Color.blue(),
-                timestamp=ctx.message.created_at
-            )
-            
-            for key, value in metrics.items():
-                if key == 'last_error' and value:
-                    embed.add_field(
-                        name=key.replace('_', ' ').title(),
-                        value=f"```{value['error']}\nat {value['time']}```",
-                        inline=False
-                    )
-                else:
-                    embed.add_field(
-                        name=key.replace('_', ' ').title(),
-                        value=str(value),
-                        inline=True
-                    )
-            
-            await ctx.send(embed=embed)
-
-        @health_check.error
-        async def health_error(ctx, error):
-            if isinstance(error, commands.MissingPermissions):
-                await ctx.send("You need administrator permissions to use this command.")
 
 class TRMNLMetrics:
     def __init__(self):
@@ -127,10 +99,14 @@ class TRMNL(RateLimitedCog):
         self.bot = bot
         self.metrics = TRMNLMetrics()
         self.doc_cache = DocCache()
-        self.feedback_channel_id = self.bot.config.get('feedback_channel_id')  
-        #1) Create dedicated channel only admin uses
-        #2) Get Channel ID
-        #3) Insert where 'None' sits now and config.json
+        
+        # Initialize feedback channel ID with proper logging
+        self.feedback_channel_id = self.bot.config.get('feedback_channel_id')
+        if self.feedback_channel_id:
+            logging.info(f"Feedback channel configured with ID: {self.feedback_channel_id}")
+        else:
+            logging.warning("No feedback channel ID configured in config.json")
+            
         self.load_docs()
         
     def load_docs(self) -> None:
@@ -492,25 +468,74 @@ class TRMNL(RateLimitedCog):
                     ephemeral=True
                 )
                 return
-                
-            if self.feedback_channel_id:
-                feedback_channel = self.bot.get_channel(self.feedback_channel_id)
-                if feedback_channel:
-                    embed = discord.Embed(
-                        title="User Feedback",
-                        description=message,
-                        color=discord.Color.blue()
-                    )
-                    embed.set_footer(text=f"From: {interaction.user.name}")
-                    await feedback_channel.send(embed=embed)
-                    
+            
+            # Acknowledge the feedback first
             await interaction.response.send_message(
                 "Thank you for your feedback!",
                 ephemeral=True
             )
+            
+            # Then handle the feedback channel
+            if self.feedback_channel_id:
+                try:
+                    feedback_channel = await self.bot.fetch_channel(int(self.feedback_channel_id))
+                    if feedback_channel:
+                        embed = discord.Embed(
+                            title="User Feedback",
+                            description=message,
+                            color=discord.Color.blue(),
+                            timestamp=datetime.now(UTC)
+                        )
+                        embed.set_footer(text=f"From: {interaction.user.name} ({interaction.user.id})")
+                        embed.add_field(name="Server", value=interaction.guild.name if interaction.guild else "DM", inline=True)
+                        
+                        await feedback_channel.send(embed=embed)
+                        logging.info(f"Feedback sent to channel {self.feedback_channel_id}")
+                    else:
+                        logging.error(f"Could not find feedback channel with ID {self.feedback_channel_id}")
+                except Exception as e:
+                    logging.error(f"Error sending feedback to channel: {str(e)}")
+            else:
+                logging.warning("No feedback channel configured")
+                
             self.metrics.log_command("feedback", str(interaction.user.id))
         except Exception as e:
             self.metrics.log_error(e, "feedback")
+            await self.handle_command_error(interaction, e)
+            
+    @app_commands.command(name="health", description="Get bot health metrics")
+    @app_commands.default_permissions(administrator=True)
+    async def health(self, interaction: discord.Interaction) -> None:
+        """Get current bot health metrics"""
+        try:
+            if not await self.handle_rate_limit(interaction, "health"):
+                return
+                
+            metrics = self.bot.health.get_health_metrics()
+            
+            embed = discord.Embed(
+                title="TRMNL Bot Health Metrics",
+                color=discord.Color.blue(),
+                timestamp=interaction.created_at
+            )
+            
+            for key, value in metrics.items():
+                if key == 'last_error' and value:
+                    embed.add_field(
+                        name=key.replace('_', ' ').title(),
+                        value=f"```{value['error']}\nat {value['time']}```",
+                        inline=False
+                    )
+                else:
+                    embed.add_field(
+                        name=key.replace('_', ' ').title(),
+                        value=str(value),
+                        inline=True)
+            
+            await interaction.response.send_message(embed=embed)
+            self.metrics.log_command("health", str(interaction.user.id))
+        except Exception as e:
+            self.metrics.log_error(e, "health")
             await self.handle_command_error(interaction, e)
             
     @app_commands.command(

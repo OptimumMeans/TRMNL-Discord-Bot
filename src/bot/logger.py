@@ -19,13 +19,12 @@ class BotLogger:
         if level not in ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'):
             raise ValueError(f"Invalid log level: {level}")
             
-        # Configure root logger
+        # Configure root logger - modified for Heroku
         logging.basicConfig(
             level=getattr(logging, level),
             format=log_format,
             handlers=[
-                logging.FileHandler(self.config.get('log_file', 'bot.log')),
-                logging.StreamHandler(sys.stdout)
+                logging.StreamHandler()  # Only use StreamHandler for Heroku
             ]
         )
         

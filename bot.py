@@ -4,6 +4,7 @@ import os
 import platform
 import sys
 import discord
+from discord import app_commands
 from discord.ext import commands
 from dotenv import load_dotenv
 
@@ -36,8 +37,27 @@ class DiscordBot(commands.Bot):
         print(f"Python version: {platform.python_version()}")
         print("-------------------")
         
-        # Load trmnl.py with our article command
+        # Load extensions - health must be loaded first
+        await self.load_extension("src.bot.health")
+        # Store reference to health monitor after loading
+        self.health = self.get_cog("HealthMonitor")
+        
         await self.load_extension("src.bot.trmnl")
+        
+        # Add graceful sync with print statements
+        print("Starting command sync...")
+        try:
+            print("Syncing commands...")
+            synced = await self.tree.sync()
+            print(f"Synced {len(synced)} commands")
+        except Exception as e:
+            print(f"Error syncing commands: {str(e)}")
+
+    async def on_tree_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError) -> None:
+        if interaction.response.is_done():
+            await interaction.followup.send(f'An error occurred: {error}', ephemeral=True)
+        else:
+            await interaction.response.send_message(f'An error occurred: {error}', ephemeral=True)
 
 load_dotenv()
 bot = DiscordBot()
